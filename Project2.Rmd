@@ -1,0 +1,450 @@
+---
+title: "Linear Regression using a dataset with used car sales"
+author: "Ioannis Vourkas"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+# Load necessary libraries
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+US Used cars dataset 
+===
+
+The original data set contains 3 million real world used cars details (from kaggle [https://www.kaggle.com/datasets/ananaymital/us-used-cars-dataset/data]). 
+However, in order to process it in R, using Python, I limited it to 3,000 values and filled the NaNs in the way described in the corresponding jupyter notebook.The measured variables:
+
+1. **`body_type`**: The general style of the car body (e.g., sedan, SUV, truck). This variable helps classify the vehicle type based on its shape and purpose.
+
+2. **`daysonmarket`**: The number of days the car has been listed on the market. This variable can indicate how long certain car models tend to stay unsold, which might imply demand or popularity.
+
+3. **`fuel_type`**: The type of fuel used by the car (e.g., gasoline, diesel, electric). Different fuel types can affect a car’s operating cost, environmental impact, and market demand.
+
+4. **`has_accidents`**: A binary indicator of whether the car has been in an accident. Cars with accident histories often have lower resale values, which makes this an important feature for pricing.
+
+5. **`highway_fuel_economy`**: The car's fuel efficiency on highways, usually measured in miles per gallon (mpg). This can be a key factor for buyers who prioritize fuel efficiency, particularly for long-distance driving.
+
+6. **`horsepower`**: The power output of the car’s engine, measured in horsepower. Horsepower often influences a car's performance and is a major consideration for buyers focused on speed and acceleration.
+
+7. **`is_new`**: A binary variable indicating if the car is new or used. This is crucial for differentiating pricing models and expectations, as new cars typically have a premium over used ones.
+
+8. **`make_name`**: The manufacturer or brand of the car (e.g., Toyota, Ford). Brand is often correlated with reliability, luxury status, and price.
+
+9. **`mileage`**: The total distance the car has traveled, typically measured in miles or kilometers. Higher mileage often decreases a car's value as it suggests more wear and tear.
+
+10. **`price`**: The listing or sale price of the car. This is generally the target variable in pricing analyses or models for predicting car value.
+
+11. **`seller_rating`**: The rating given to the seller, which may indicate trustworthiness or quality of service. Buyers often prefer sellers with higher ratings, as they may provide more reliable information or a better purchasing experience.
+
+12. **`year`**: The model year of the car, indicating when it was manufactured. Older cars typically depreciate in value, while newer models may command higher prices.
+
+
+
+
+
+---
+
+## Scope
+
+To effectively predict used car prices with a linear regression model, starting with Exploratory Data Analysis (EDA) is crucial. EDA helps you understand the relationships between the different factors (features) and the price, which will guide you in choosing and transforming the features for the predictive model.
+
+<span style="color: blue">*Step 1: Reading and Understanding the Data*</span>
+===
+```{r cars}
+
+cars.df <- read.csv("cleaned_used_cars_data.csv", TRUE, ",")
+dim(cars.df)
+
+```
+---
+```{r}
+
+str(cars.df) #Check the structure of the dataframe
+summary(cars.df) #Summary statistics for numerical variables
+head(cars.df) #View the first few rows
+```
+
+## <span style="color: blue">*Step 2: Data Cleaning and Preparation*</span>
+```{r}
+
+# Check for duplicates
+duplicates <- cars.df[duplicated(cars.df), ]
+print(paste("Number of duplicate entries:", nrow(duplicates)))
+
+# Remove duplicates
+cars.df <- cars.df[!duplicated(cars.df), ]
+
+
+# The missing values and errors have been filled in the corresponding jupyter notebook. Hence, there is no nead for extra cleaning.
+
+
+```
+
+## <span style="color: blue">*Step 3: Visualizing the data*</span>
+
+Some example questions we might be interested in:
+
+- What is the relationship between car mileage and price?
+- Which features  are most important for predicting car price?
+- Which features (numerical and categorical) show the strongest correlation with car prices?
+
+
+Distributions of used car variables
+===
+
+
+```{r cars_plots, echo=FALSE, fig.width=20, fig.height=30}  
+par(mfrow = c(4, 3), mar = c(10, 6, 5, 2), oma = c(2, 2, 2, 2))  # Increased bottom margin for title space
+
+# Loop through each column in cars.df
+for (j in 1:ncol(cars.df)) {
+  if (is.numeric(cars.df[, j])) {
+    hist(cars.df[, j], 
+         xlab = "",  
+         main = paste("Histogram of", colnames(cars.df)[j]),
+         col = "lightblue", 
+         breaks = 50,
+         cex.axis = 2,          # Increased axis text size
+         cex.main = 2,          # Increased title text size
+         cex.lab = 1.5)         # Increased label size for x/y axis
+    
+    # Place x-axis label at the bottom-right corner for histograms
+    mtext(colnames(cars.df)[j], side = 1, line = 6, cex = 1.5, adj = 1)
+    
+  } else if (is.factor(cars.df[, j]) || is.character(cars.df[, j])) {
+    barplot(table(cars.df[, j]), 
+            main = paste("Bar Plot of", colnames(cars.df)[j]),
+            xlab = NULL,  # Remove x-axis label for bar plots
+            col = "lightgreen",
+            las = 2,              # Rotate x-axis labels for better readability
+            cex.names = 1.5,      # Increased size of category names
+            cex.axis = 2,         # Increased axis text size
+            cex.main = 2)         # Increased title text size
+    
+    # Adjust space between the plots
+    box()  # Adds a box around the plot area
+    mtext(colnames(cars.df)[j], side = 1, line = 7, cex = 1.5, adj = 1)  # Move x-axis label further up
+  }
+}
+```
+
+```{r }
+# Scatter plot matrix for numeric variables in cars.df
+pairs(~ price + highway_fuel_economy  + 
+       mileage + seller_rating + year, 
+      data = cars.df, 
+      main = "Scatter Plot Matrix of Numeric Variables",
+      pch = 19,          # Use filled circles for points
+      col = "blue",      # Color of points
+      cex = 0.5)         # Size of points
+
+
+
+# Plot 1: Price by Body Type
+stripchart(price ~ body_type, data = cars.df, 
+           main = "Price by Body Type", 
+           xlab = "Body Type", 
+           ylab = "Price", 
+           pch = 19,                 # Use filled circles for points
+           col = "blue", 
+           vertical = TRUE,          # Vertical orientation
+           jitter = TRUE,            # Add jitter to points
+           method = "jitter")
+
+# Plot 2: Price by Fuel Type
+stripchart(price ~ fuel_type, data = cars.df, 
+           main = "Price by Fuel Type", 
+           xlab = "Fuel Type", 
+           ylab = "Price", 
+           pch = 19, 
+           col = "green", 
+           vertical = TRUE, 
+           jitter = TRUE, 
+           method = "jitter")
+
+# Plot 3: Price by Make Name
+stripchart(price ~ make_name, data = cars.df, 
+           main = "Price by Make Name", 
+           xlab = "Make Name", 
+           ylab = "Price", 
+           pch = 19, 
+           col = "red", 
+           vertical = TRUE, 
+           jitter = TRUE, 
+           method = "jitter")
+library(dplyr)
+# Count the frequency of each car make
+make_frequency <- cars.df %>%
+  group_by(make_name) %>%
+  summarise(frequency = n()) %>%
+  arrange(desc(frequency))  # Sort in descending order
+
+# Get the make with the largest frequency
+largest_make <- make_frequency %>% slice(1)
+
+# Print the result
+cat("The most common manufacturer is:", largest_make$make_name, "with", largest_make$frequency, "vehicles.\n")
+
+
+```
+
+---
+
+What can we observe from the plots?
+
+Histograms and bar plots:
+
+-`body_type`: The most common car types are SUV, Sedan and Pickup Truck with the order named.
+
+-`fuel_type`: Overwhelmingly most cars burn gasoline.
+
+-`has_accidents`: The majority of cars had no accidents in the past.
+
+-`make_name`: The most common car producer of used cars is Chevrolet.
+
+-`price`: The majority of cars cost under 50,000.
+
+-`seller_rating`: The ratings of the cars mostly fluctuate around 3.5-4.5.
+
+-`year`: The year of manufacture of most vehicles is after 2015.
+
+Scatter plots:
+
+-Price vs. Mileage: The third plot in the first row shows that as mileage increases, prices tend to decrease, which is common as cars with higher mileage are often older and have more wear, leading to lower resale values.
+
+-Price vs. Year: The last plot in the first row shows the relationship between price and year. Newer cars (with recent years) tend to have higher prices, which makes sense as cars generally depreciate over time.
+
+-Mileage vs. Year: The plot in the third row and last column might show a trend where older cars have higher mileage, reflecting accumulated usage over time.
+
+-Highway_fuel_economy vs Year: The plot in the second row and last columns indicates that the most recent manufactured cars tend to have better highway fuel economy. 
+
+-Price vs fuel type: Gasoline type cars tend to have higher prices, since they are those with the higher demand.
+
+-There are not significant correlation regarding Make name and Body Type with Price.
+
+  
+Correlations between used car variables
+===
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Separate numerical and categorical variables
+numerical_vars <- cars.df %>% select(daysonmarket, highway_fuel_economy, horsepower, mileage, price, seller_rating, year)
+categorical_vars <- cars.df %>% select(body_type, fuel_type, has_accidents, is_new, make_name)
+
+# Calculate the correlation matrix for numerical variables
+cars.cor = cor(numerical_vars, use = "complete.obs")  # Use 'complete.obs' to handle NA values
+correlation_matrix = round(cars.cor, 3)
+
+# Display the correlation matrix
+print(correlation_matrix)
+```
+
+
+Some strong correlations! Let's find the biggest (in absolute value):
+
+```{r}
+cars.cor[lower.tri(cars.cor,diag=TRUE)] = 0 # Why only upper tri part?
+#Setting this part to 0 means only the upper triangle (above the diagonal) retains the correlation values. This removes duplicate values (since correlations are symmetric) and eliminates self-correlations (diagonal elements), which are always 1.
+
+cars.cor.sorted = sort(abs(cars.cor),decreasing=T)
+cars.cor.sorted[1]
+vars.big.cor = arrayInd(which(abs(cars.cor)==cars.cor.sorted[1]), 
+                        dim(cars.cor)) # Note: arrayInd() is useful
+colnames(numerical_vars)[vars.big.cor] 
+```
+
+Let's find the second biggest correlation (in absolute value):
+
+```{r}
+cars.cor.sorted[2]
+vars.big.cor = arrayInd(which(abs(cars.cor)==cars.cor.sorted[2]), 
+                        dim(cars.cor))
+#arrayInd(...) then converts this linear index to row and column indices, using dim(pros.cor) to match the dimensions of pros.cor.
+colnames(numerical_vars)[vars.big.cor] 
+```
+
+Let's find the most expensive body_type, fuel_type, and make_name
+
+```{r}
+# Load necessary libraries
+
+library(dplyr)
+most_expensive_body_type <- cars.df %>%
+  group_by(body_type) %>%
+  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
+  arrange(desc(avg_price)) %>%
+  slice(1)
+
+print(most_expensive_body_type)
+
+most_expensive_fuel_type <- cars.df %>%
+  group_by(fuel_type) %>%
+  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
+  arrange(desc(avg_price)) %>%
+  slice(1)
+
+print(most_expensive_fuel_type)
+
+most_expensive_make_name <- cars.df %>%
+  group_by(make_name) %>%
+  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
+  arrange(desc(avg_price)) %>%
+  slice(1)
+
+print(most_expensive_make_name)
+```
+
+## <span style="color: blue">*Step 4: Perform Hypothesis testing using the initial inferences from the previous step*</span>
+
+Let's state some questions based on our visualizations and check if they are valid or not.
+
+1.Is SUV the most common `body_type`? Does `SUV/Crossover` type constitute more than 50% of the entire car data set? 
+
+2.From the plots one can assume that hybrid models are slightly more than diesel ones. Let's check it.
+
+3.Is average seller_rating less than 3.9? We can state that the average is close to 4, but how close?
+
+4.Does over 90% of cars have less than 100,000 kilometers?
+
+In these cases, the code performs a t-test with the assumption of unequal variances (var.equal = FALSE), which is a key indicator that the population variances are unknown and not assumed to be the same. This makes the t-test more flexible in handling real-world data where these assumptions may not hold. The t-distribution also adjusts for the added uncertainty from estimating the population standard deviation.
+```{r}
+#1.
+# Step 1: Create a binary variable for SUV
+cars.df$suv_binary <- ifelse(cars.df$body_type == "SUV / Crossover", 1, 0)
+
+# Step 2: Perform a one-sample t-test
+# Testing if the mean frequency of SUVs is significantly greater than 0.5 (50%)
+t.test(cars.df$suv_binary, mu = 0.5, alternative = "greater")
+```
+With a p-value of 0.0056, this result is statistically significant at the 0.05 level, meaning there’s strong evidence to reject the null hypothesis. This indicates that the mean proportion of SUVs in the dataset is significantly greater than 0.5, or 50%.
+
+```{r}
+#2. 
+# Step 1: Create binary variables for hybrid and diesel
+cars.df$hybrid_binary <- ifelse(cars.df$fuel_type == "Hybrid", 1, 0)
+cars.df$diesel_binary <- ifelse(cars.df$fuel_type == "Diesel", 1, 0)
+
+# Step 2: Perform a two-sample t-test with alternative = "less"
+t.test(cars.df$hybrid_binary, cars.df$diesel_binary, alternative = "less")
+```
+p-value = 0.9995. This high p-value suggests that we do not have enough evidence to conclude that the proportion of hybrid models is significantly less than that of diesel models.
+
+```{r}
+#3
+# Perform a one-sample t-test to check if mean seller_rating is less than 3.9
+t.test(cars.df$seller_rating, mu = 3.9, alternative = "less")
+```
+p-value < 2.2e-16: This extremely small p-value is well below 0.05, allowing us to reject the null hypothesis. This means there's strong evidence that the mean seller rating is significantly less than 3.9.
+
+```{r}
+#4.
+# Step 1: Create a binary variable for cars with less than 100,000 kilometers
+cars.df$less_than_100k <- ifelse(cars.df$mileage < 100000, 1, 0)
+
+# Step 2: Perform a one-sample t-test
+t_test_result <- t.test(cars.df$less_than_100k, mu = 0.75, alternative = "greater")
+
+# Display the result
+print(t_test_result)
+```
+p-value: < 2.2e-16. This extremely low p-value suggests strong evidence against the null hypothesis. You can reject the null hypothesis, indicating that the mean of the binary variable (the proportion of cars with less than 100,000 kilometers) is significantly greater than 0.75.
+
+
+## <span style="color: blue">*Step 5: Model Building step*</span>
+
+The linear model is arguably the **most widely used** statistical model, has a place in nearly every application domain of statistics
+
+Given response $Y$ and predictors $X_1,\ldots,X_p$, in a **linear regression model**, we posit:
+
+$$
+Y = \beta_0 + \beta_1 X_1 + \ldots + \beta_p X_p + \epsilon, 
+\quad \text{where $\epsilon \sim N(0,\sigma^2)$}
+$$
+
+```{r}
+# Step 1: Calculate car age
+cars.df$car_age <- 2024 - cars.df$year
+
+# Step 2: Select categories and filter data
+selected_categories <- c("Toyota Sedan", "Honda SUV / Crossover", "Ford Pickup Truck") # Update with actual category names
+cars.df$category <- paste(cars.df$make_name, cars.df$body_type)
+cars_subset <- subset(cars.df, category %in% selected_categories)
+
+# Step 3: Build the linear model
+lm_model <- lm(price ~ mileage + car_age, data = cars_subset)
+
+# Step 4: Calculate residuals and add to the data frame
+cars_subset$residuals <- resid(lm_model)
+
+# Step 5: Plot residuals by category
+boxplot(residuals ~ category, data = cars_subset, 
+        main = "Residuals by Car Category",
+        xlab = "Car Category",
+        ylab = "Residuals",
+        col = c("lightblue", "lightgreen", "lightpink"))
+```
+
+Interpretation:
+
+The boxplot above displays the residuals of the linear regression model for each selected car category.
+
+- `Ford Pickup Truck`: The residuals for this category show a higher median and a larger spread compared to the others. There are some high outliers, indicating instances where the model underestimated the actual price significantly. This suggests that the model may be less effective for predicting the prices of pickup trucks.
+
+- `Honda SUV / Crossover` and `Toyota Sedan`: These categories have narrower interquartile ranges and median residuals closer to zero. This implies that the model is generally more accurate in predicting prices for SUVs and sedans than for Track Pickups. This is something very logical, since SUVs and Sedans are more common in the data set, hence there are more data to build a more accuare model 
+
+## <span style="color: blue">*Step 6: Residual Analysis of Model*</span>
+
+According to the logic of Open Intro Stat book, Section 8.2, I choose to use the Forward selection approach in order to identify the best subset of predictors for my model, based on adjusted \( R^2 \). The steps are the following:
+
+1.I will start with a null model (no predictors), and calculate the adjusted \( R^2 \) for this baseline model. 
+
+2.I will add each variable one at a time and check the adjusted \( R^2 \) for each resulting model.
+
+3.I will add the variable that results in the highest adjusted \( R^2 \), provided it improves over the current model's adjusted \( R^2 \)
+
+4.I will repeat by adding additional variables one at a time, selecting the variable that offers the highest adjusted \( R^2 \) mprovement until no significant improvement is achieved.
+
+```{r}
+
+# Step 1: Define a null model and a full model
+null_model <- lm(price ~ 1, data = cars.df) # model with no predictors
+full_model <- lm(price ~ mileage + car_age + horsepower , data = cars.df) # model with all predictors, note that I chose as predictors only variables that have absolut correlation with price > 0.5
+
+# Step 2: Use stepwise selection with forward direction based on adjusted R-squared
+forward_model <- step(null_model, 
+                      scope = list(lower = null_model, upper = full_model), 
+                      direction = "forward", 
+                      k = log(nrow(cars.df))) # k = log(n) is used for BIC(Bayesian Information Criterion), which balances fit and complexity
+
+# Print the summary of the forward selection model
+summary(forward_model)
+
+```
+Interpretation
+
+- Residual Standard Error (RSE): 9545. This is the average distance that the observed values fall from the regression line. Lower RSE indicates a better fit.
+- Multiple R-squared: 0.6465. This indicates that approximately 64.65% of the variability in the price can be explained by this model.
+- Adjusted R-squared: 0.6461. This adjusts for the number of predictors, making it a more reliable metric, especially with multiple predictors. A high adjusted R-squared suggests that the model does a good job explaining the variance in the data.
+- F-statistic: 1778, with a p-value of < 2.2e-16, indicating that the model is statistically significant overall. This test confirms that the combination of horsepower, car_age, and mileage is effective in predicting price.
+- The model also suggests that horsepower has a positive effect on price, while both car age and mileage have negative effects.
+
+Residual Analysis
+===
+
+```{r}
+# Plot residuals to check assumptions
+
+plot(forward_model)
+```
+Results:
+
+- `Resuduals vs Fitted`: Ideally, we would expect the residuals to be randomly scattered around the horizontal line at zero, showing no clear pattern. However, in this plot, there appears to be a slight curve, particularly at the lower end of the fitted values, which may indicate that the linearity assumption is not fully met. This could suggest that a nonlinear relationship exists between the predictors and the response variable.
+
+- `Q-Q residuals`: The deviation from normality, especially in the upper tail, suggests that the model may not fully meet the assumptions of linear regression, potentially affecting the validity of inference statistics such as confidence intervals and p-values.
+
+-  `Scale-Location` and `Residuals vs Leverage`: The presence of heteroscedasticity(non-constant variance) suggests that the model might benefit from transformations (e.g., a log transformation on the dependent variable) to stabilize the variance.For homoscedasticity, we would expect a relatively horizontal line without a clear pattern in the plot.
