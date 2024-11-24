@@ -15,7 +15,7 @@ US Used cars dataset
 ===
 
 The original data set contains 3 million real world used cars details (from kaggle [https://www.kaggle.com/datasets/ananaymital/us-used-cars-dataset/data]). 
-However, in order to process it in R, using Python, I limited it to 3,000 values and filled the NaNs in the way described in the corresponding jupyter notebook.The measured variables:
+However, in order to process it in R, using Python, I limited it to 30,000 values and filled the NaNs in the way described in the corresponding jupyter notebook.The measured variables:
 
 1. **`body_type`**: The general style of the car body (e.g., sedan, SUV, truck). This variable helps classify the vehicle type based on its shape and purpose.
 
@@ -115,7 +115,11 @@ for (j in 1:ncol(cars.df)) {
     mtext(colnames(cars.df)[j], side = 1, line = 6, cex = 1.5, adj = 1)
     
   } else if (is.factor(cars.df[, j]) || is.character(cars.df[, j])) {
-    barplot(table(cars.df[, j]), 
+    # Focus on top 5 most common categories
+    category_counts <- table(cars.df[, j])
+    top_categories <- sort(category_counts, decreasing = TRUE)[1:5]
+    
+    barplot(top_categories, 
             main = paste("Bar Plot of", colnames(cars.df)[j]),
             xlab = NULL,  # Remove x-axis label for bar plots
             col = "lightgreen",
@@ -129,6 +133,7 @@ for (j in 1:ncol(cars.df)) {
     mtext(colnames(cars.df)[j], side = 1, line = 7, cex = 1.5, adj = 1)  # Move x-axis label further up
   }
 }
+
 ```
 
 ```{r }
@@ -143,38 +148,68 @@ pairs(~ price + highway_fuel_economy  +
 
 
 
+# Ensure libraries are loaded
+library(ggplot2)
+
+# Function to filter the top 5 categories
+top5_categories <- function(data, column) {
+  category_counts <- table(data[[column]])
+  top_categories <- names(sort(category_counts, decreasing = TRUE)[1:5])
+  data[data[[column]] %in% top_categories, ]
+}
+
+# Filter data for top 5 categories for each column
+top_body_type <- top5_categories(cars.df, "body_type")
+top_fuel_type <- top5_categories(cars.df, "fuel_type")
+top_make_name <- top5_categories(cars.df, "make_name")
+
+# Set larger margins and spacing between boxplots
+par(mar = c(8, 6, 4, 2))  # Increase bottom margin for x-axis labels
+
 # Plot 1: Price by Body Type
-stripchart(price ~ body_type, data = cars.df, 
-           main = "Price by Body Type", 
-           xlab = "Body Type", 
-           ylab = "Price", 
-           pch = 19,                 # Use filled circles for points
-           col = "blue", 
-           vertical = TRUE,          # Vertical orientation
-           jitter = TRUE,            # Add jitter to points
-           method = "jitter")
+boxplot(price ~ factor(body_type, levels = unique(top_body_type$body_type)), 
+        data = top_body_type,
+        main = "Price by Body Type",
+        xlab = "",
+        ylab = "Price",
+        col = "blue",
+        las = 2,              # Rotate x-axis labels
+        cex.axis = 0.8,       # Reduce size of axis text
+        cex.main = 1.5,       # Larger title
+        cex.lab = 1.2,        # Larger y-axis label
+        outline = FALSE)      # Remove outliers for clarity
+mtext("Body Type", side = 1, line = 6, cex = 1.2)  # Add x-axis label
 
 # Plot 2: Price by Fuel Type
-stripchart(price ~ fuel_type, data = cars.df, 
-           main = "Price by Fuel Type", 
-           xlab = "Fuel Type", 
-           ylab = "Price", 
-           pch = 19, 
-           col = "green", 
-           vertical = TRUE, 
-           jitter = TRUE, 
-           method = "jitter")
+boxplot(price ~ factor(fuel_type, levels = unique(top_fuel_type$fuel_type)), 
+        data = top_fuel_type,
+        main = "Price by Fuel Type",
+        xlab = "",
+        ylab = "Price",
+        col = "green",
+        las = 2, 
+        cex.axis = 0.8, 
+        cex.main = 1.5, 
+        cex.lab = 1.2,
+        outline = FALSE) #  exclude outliers from the plot for better visualization
+mtext("Fuel Type", side = 1, line = 6, cex = 1.2)
 
 # Plot 3: Price by Make Name
-stripchart(price ~ make_name, data = cars.df, 
-           main = "Price by Make Name", 
-           xlab = "Make Name", 
-           ylab = "Price", 
-           pch = 19, 
-           col = "red", 
-           vertical = TRUE, 
-           jitter = TRUE, 
-           method = "jitter")
+boxplot(price ~ factor(make_name, levels = unique(top_make_name$make_name)), 
+        data = top_make_name,
+        main = "Price by Make Name",
+        xlab = "",
+        ylab = "Price",
+        col = "red",
+        las = 2, 
+        cex.axis = 0.8, 
+        cex.main = 1.5, 
+        cex.lab = 1.2,
+        outline = FALSE)
+mtext("Make Name", side = 1, line = 6, cex = 1.2)
+
+
+
 library(dplyr)
 # Count the frequency of each car make
 make_frequency <- cars.df %>%
@@ -203,13 +238,13 @@ Histograms and bar plots:
 
 -`has_accidents`: The majority of cars had no accidents in the past.
 
--`make_name`: The most common car producer of used cars is Chevrolet.
-
 -`price`: The majority of cars cost under 50,000.
 
 -`seller_rating`: The ratings of the cars mostly fluctuate around 3.5-4.5.
 
 -`year`: The year of manufacture of most vehicles is after 2015.
+
+-`make_name` : The manufacturer with the most cars is Ford
 
 Scatter plots:
 
@@ -221,9 +256,11 @@ Scatter plots:
 
 -Highway_fuel_economy vs Year: The plot in the second row and last columns indicates that the most recent manufactured cars tend to have better highway fuel economy. 
 
--Price vs fuel type: Gasoline type cars tend to have higher prices, since they are those with the higher demand.
+-Price vs fuel_type: Electric cars are more expensive (higher μ) due to high battery and technology costs, premium features, limited production scale, and positioning as luxury or flagship models.
 
--There are not significant correlation regarding Make name and Body Type with Price.
+-Price vs body_type: Pickup trucks are more expensive (higher μ) due to their larger size, powerful engines, heavy-duty construction for towing and hauling, and increasing demand for luxury and technology features in modern models.The cheapest (lower μ) is Hatchback.
+
+-Price vs make_name: BMW is more expensive (higher μ) because it is positioned as a luxury brand, offering premium materials, advanced technology, performance-focused engineering, and a reputation for prestige and status compared to more mass-market brands like Jeep, Chevrolet (most affordable), Ford, and Toyota.
 
   
 Correlations between used car variables
@@ -268,36 +305,7 @@ vars.big.cor = arrayInd(which(abs(cars.cor)==cars.cor.sorted[2]),
 colnames(numerical_vars)[vars.big.cor] 
 ```
 
-Let's find the most expensive body_type, fuel_type, and make_name
 
-```{r}
-# Load necessary libraries
-
-library(dplyr)
-most_expensive_body_type <- cars.df %>%
-  group_by(body_type) %>%
-  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
-  arrange(desc(avg_price)) %>%
-  slice(1)
-
-print(most_expensive_body_type)
-
-most_expensive_fuel_type <- cars.df %>%
-  group_by(fuel_type) %>%
-  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
-  arrange(desc(avg_price)) %>%
-  slice(1)
-
-print(most_expensive_fuel_type)
-
-most_expensive_make_name <- cars.df %>%
-  group_by(make_name) %>%
-  summarize(avg_price = mean(price, na.rm = TRUE)) %>%
-  arrange(desc(avg_price)) %>%
-  slice(1)
-
-print(most_expensive_make_name)
-```
 
 ## <span style="color: blue">*Step 4: Perform Hypothesis testing using the initial inferences from the previous step*</span>
 
@@ -305,11 +313,11 @@ Let's state some questions based on our visualizations and check if they are val
 
 1.Is SUV the most common `body_type`? Does `SUV/Crossover` type constitute more than 50% of the entire car data set? 
 
-2.From the plots one can assume that hybrid models are slightly more than diesel ones. Let's check it.
+2.The wear and tear of the cars is a very significant parameter to assess the value of them. Let's examine if cars with has_accidents=True and Year<=2015 tend to have lower prices that cars with has_accidents=False and Year>2015.
 
-3.Is average seller_rating less than 3.9? We can state that the average is close to 4, but how close?
+3.Regarding BMW's expensive cars, one can assume that it has the cars with higher quality, hence higher seller ratings for the other most common cars manufacturers (i.e. Jeep., Chevrolet, Ford, Toyota). Let's examine if that states.
 
-4.Does over 90% of cars have less than 100,000 kilometers?
+4.Does over 95% of cars have less than 150,000 kilometers? For the histogram of mileage one can observe that almost all cars have less than 150,000 kilometers.
 
 In these cases, the code performs a t-test with the assumption of unequal variances (var.equal = FALSE), which is a key indicator that the population variances are unknown and not assumed to be the same. This makes the t-test more flexible in handling real-world data where these assumptions may not hold. The t-distribution also adjusts for the added uncertainty from estimating the population standard deviation.
 ```{r}
@@ -321,38 +329,53 @@ cars.df$suv_binary <- ifelse(cars.df$body_type == "SUV / Crossover", 1, 0)
 # Testing if the mean frequency of SUVs is significantly greater than 0.5 (50%)
 t.test(cars.df$suv_binary, mu = 0.5, alternative = "greater")
 ```
-With a p-value of 0.0056, this result is statistically significant at the 0.05 level, meaning there’s strong evidence to reject the null hypothesis. This indicates that the mean proportion of SUVs in the dataset is significantly greater than 0.5, or 50%.
+With a p-value of 0.0001171, this result is statistically significant at the 0.05 level, meaning there’s strong evidence to reject the null hypothesis. This indicates that the mean proportion of SUVs in the dataset is significantly greater than 0.5, or 50%.
 
 ```{r}
 #2. 
-# Step 1: Create binary variables for hybrid and diesel
-cars.df$hybrid_binary <- ifelse(cars.df$fuel_type == "Hybrid", 1, 0)
-cars.df$diesel_binary <- ifelse(cars.df$fuel_type == "Diesel", 1, 0)
+# Filter data for Group 1 and Group 2
+group1_prices <- cars.df$price[cars.df$has_accidents == "True" & cars.df$year <= 2015]
+group2_prices <- cars.df$price[cars.df$has_accidents == "False" & cars.df$year > 2015]
 
-# Step 2: Perform a two-sample t-test with alternative = "less"
-t.test(cars.df$hybrid_binary, cars.df$diesel_binary, alternative = "less")
+# Perform Welch's t-test
+t_test <- t.test(group1_prices, group2_prices, alternative = "less")
+
+# Display results
+t_test
+
 ```
-p-value = 0.9995. This high p-value suggests that we do not have enough evidence to conclude that the proportion of hybrid models is significantly less than that of diesel models.
+The test provides strong evidence that cars with accidents (Group 1) and older manufacturing years (≤ 2015) tend to have significantly lower prices than cars with no accidents (Group 2) and recent manufacturing years (> 2015).
 
 ```{r}
 #3
-# Perform a one-sample t-test to check if mean seller_rating is less than 3.9
-t.test(cars.df$seller_rating, mu = 3.9, alternative = "less")
+# Filter seller ratings by manufacturer
+bmw_ratings <- cars.df$seller_rating[cars.df$make_name == "BMW"]
+other_ratings <- cars.df$seller_rating[cars.df$make_name %in% c("Jeep", "Chevrolet", "Ford", "Toyota")]
+
+# Compute the average of the other four manufacturers
+average_other <- mean(other_ratings, na.rm = TRUE)
+
+# Perform one-sample t-test
+t_test <- t.test(bmw_ratings, mu = average_other, alternative = "greater")
+
+# Display results
+t_test
+
 ```
-p-value < 2.2e-16: This extremely small p-value is well below 0.05, allowing us to reject the null hypothesis. This means there's strong evidence that the mean seller rating is significantly less than 3.9.
+The test provides strong evidence that BMW’s average seller rating (4.11) s significantly higher than the average seller rating of the other four manufacturers combined (3.9966)
 
 ```{r}
 #4.
 # Step 1: Create a binary variable for cars with less than 100,000 kilometers
-cars.df$less_than_100k <- ifelse(cars.df$mileage < 100000, 1, 0)
+cars.df$less_than_100k <- ifelse(cars.df$mileage < 150000, 1, 0)
 
 # Step 2: Perform a one-sample t-test
-t_test_result <- t.test(cars.df$less_than_100k, mu = 0.75, alternative = "greater")
+t_test_result <- t.test(cars.df$less_than_100k, mu = 0.95, alternative = "greater")
 
 # Display the result
 print(t_test_result)
 ```
-p-value: < 2.2e-16. This extremely low p-value suggests strong evidence against the null hypothesis. You can reject the null hypothesis, indicating that the mean of the binary variable (the proportion of cars with less than 100,000 kilometers) is significantly greater than 0.75.
+This extremely low p-value suggests strong evidence against the null hypothesis. You can reject the null hypothesis, indicating that the mean of the binary variable (the proportion of cars with less than 150,000 kilometers) is significantly greater than 0.95.
 
 
 ## <span style="color: blue">*Step 5: Model Building step*</span>
@@ -393,9 +416,11 @@ Interpretation:
 
 The boxplot above displays the residuals of the linear regression model for each selected car category.
 
-- `Ford Pickup Truck`: The residuals for this category show a higher median and a larger spread compared to the others. There are some high outliers, indicating instances where the model underestimated the actual price significantly. This suggests that the model may be less effective for predicting the prices of pickup trucks.
+- `Ford Pickup Truck`: The median residual appears to be around 10,000. This indicates that, on average, the model overestimates the price of Ford Pickup Trucks by about 10,000 units.The interquartile range (IQR) is relatively wide, suggesting that the model's predictions for this category have a larger variability.
 
-- `Honda SUV / Crossover` and `Toyota Sedan`: These categories have narrower interquartile ranges and median residuals closer to zero. This implies that the model is generally more accurate in predicting prices for SUVs and sedans than for Track Pickups. This is something very logical, since SUVs and Sedans are more common in the data set, hence there are more data to build a more accuare model 
+- `Honda SUV / Crossover`: The model's predictions are relatively accurate, with a median residual close to 0 and a narrower spread of residuals.
+
+- `Toyota Sedans`: The median residual is around -10,000, indicating that the model tends to underestimate the price of Toyota Sedans by about 10,000 units. The IQR is also narrow, suggesting consistent predictions for this category.
 
 ## <span style="color: blue">*Step 6: Residual Analysis of Model*</span>
 
@@ -407,13 +432,13 @@ According to the logic of Open Intro Stat book, Section 8.2, I choose to use the
 
 3.I will add the variable that results in the highest adjusted \( R^2 \), provided it improves over the current model's adjusted \( R^2 \)
 
-4.I will repeat by adding additional variables one at a time, selecting the variable that offers the highest adjusted \( R^2 \) mprovement until no significant improvement is achieved.
+4.I will repeat by adding additional variables one at a time, selecting the variable that offers the highest adjusted \( R^2 \) improvement until no significant improvement is achieved.
 
 ```{r}
 
 # Step 1: Define a null model and a full model
 null_model <- lm(price ~ 1, data = cars.df) # model with no predictors
-full_model <- lm(price ~ mileage + car_age + horsepower , data = cars.df) # model with all predictors, note that I chose as predictors only variables that have absolut correlation with price > 0.5
+full_model <- lm(price ~ mileage: + car_age + horsepower , data = cars.df) # model with all predictors, note that I chose as predictors only variables that have absolut correlation with price > 0.5
 
 # Step 2: Use stepwise selection with forward direction based on adjusted R-squared
 forward_model <- step(null_model, 
@@ -427,11 +452,13 @@ summary(forward_model)
 ```
 Interpretation
 
-- Residual Standard Error (RSE): 9545. This is the average distance that the observed values fall from the regression line. Lower RSE indicates a better fit.
-- Multiple R-squared: 0.6465. This indicates that approximately 64.65% of the variability in the price can be explained by this model.
-- Adjusted R-squared: 0.6461. This adjusts for the number of predictors, making it a more reliable metric, especially with multiple predictors. A high adjusted R-squared suggests that the model does a good job explaining the variance in the data.
-- F-statistic: 1778, with a p-value of < 2.2e-16, indicating that the model is statistically significant overall. This test confirms that the combination of horsepower, car_age, and mileage is effective in predicting price.
-- The model also suggests that horsepower has a positive effect on price, while both car age and mileage have negative effects.
+- Residual Standard Error (RSE): This value of 17440 indicates that, on average, the model's predictions for car prices are off by about $17,440. This suggests that the model's predictions are relatively inacurate.
+- Multiple R-squared: 0.4256. This value indicates that approximately 42.56% of the variation in car prices can be explained by the model, which includes horsepower and mileage as predictors. This suggests a moderate level of fit.
+- Adjusted R-squared: 0.4256.  This value is same as the R-squared, indicating that the model's fit is not significantly affected by the number of predictors.
+- F-statistic and p-value: The extremely low p-value (< 2.2e-16) suggests that the overall model is highly statistically significant, meaning that at least one of the predictors (horsepower or mileage) is significantly related to car price.
+- Coefficient Interpretation:
+  - Horsepower: A one-unit increase in horsepower is associated with a $135.3 increase in car price, on average, holding mileage constant.
+  - Mileage: A one-unit increase in mileage is associated with a $0.21 decrease in car price, on average, holding horsepower constant.
 
 Residual Analysis
 ===
@@ -443,8 +470,10 @@ plot(forward_model)
 ```
 Results:
 
-- `Resuduals vs Fitted`: Ideally, we would expect the residuals to be randomly scattered around the horizontal line at zero, showing no clear pattern. However, in this plot, there appears to be a slight curve, particularly at the lower end of the fitted values, which may indicate that the linearity assumption is not fully met. This could suggest that a nonlinear relationship exists between the predictors and the response variable.
+- `Resuduals vs Fitted`: The Residuals vs Fitted plot shows a non-random pattern, indicating that the model assumptions are not met. There appears to be a funnel shape, suggesting that the variance of the residuals increases as the fitted values increase. This violates the assumption of homoscedasticity, where the variance of the residuals should be constant across all fitted values. Additionally, there are a few outliers that deviate significantly from the main pattern.
 
 - `Q-Q residuals`: The deviation from normality, especially in the upper tail, suggests that the model may not fully meet the assumptions of linear regression, potentially affecting the validity of inference statistics such as confidence intervals and p-values.
 
--  `Scale-Location` and `Residuals vs Leverage`: The presence of heteroscedasticity(non-constant variance) suggests that the model might benefit from transformations (e.g., a log transformation on the dependent variable) to stabilize the variance.For homoscedasticity, we would expect a relatively horizontal line without a clear pattern in the plot.
+-  `Scale-Location`: The Scale-Location plot shows a non-random pattern in the standardized residuals, indicating that the model assumptions are not met. There appears to be a U-shaped pattern, suggesting that the spread of the residuals changes as the fitted values increase and then decrease. This violates the assumption of homoscedasticity, where the variance of the residuals should be constant across all fitted values. This pattern suggests that the model may not be equally reliable for all ranges of fitted values.
+
+- `Residuals vs Leverage`: The Residuals vs Leverage plot helps identify influential points in the data. These are points that have a significant impact on the model's fit and predictions. The plot shows three influential points labeled "28721", "17172", and "28460". These points have high leverage, meaning they have a large impact on the model's estimates. Additionally, they have relatively large standardized residuals, indicating that they are not well-explained by the model. These points could be outliers or data points with unique characteristics that the model is not able to capture. 
